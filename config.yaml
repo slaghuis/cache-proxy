@@ -1,0 +1,50 @@
+listen: ":8080"
+
+upstream:
+  base_url: http://localhost:4000
+  api_key: sk-local-dev
+
+qdrant:
+  host: localhost
+  port: 6334
+  collection: semantic_cache
+
+ollama:
+  base_url: http://localhost:11434
+  model: bge-m3
+
+cache:
+  enabled: true
+  sqlite_path: ./cache.db
+  semantic_threshold: 0.95
+  max_prompt_chars: 24000
+  ttl_hours: 168   # 7 days
+
+routing:
+  default_model: claude-sonnet
+  rules:
+    # Short prompts -> local, fast model
+    - when: { max_prompt_chars: 2000 }
+      model: qwen-coder-small
+    # Agent passes "x-task-tag: refactor" -> local 14b
+    - when: { has_tag: refactor }
+      model: qwen-coder
+    # Agent requests a specific model -> honor it
+    - when: { model_hint_equals: gpt-5 }
+      model: gpt-5
+    - when: { model_hint_equals: claude-sonnet }
+      model: claude-sonnet
+
+pricing:
+  claude-sonnet:
+    input_per_1m:  3.00
+    output_per_1m: 15.00
+  gpt-5:
+    input_per_1m:  5.00
+    output_per_1m: 20.00
+  qwen-coder:
+    input_per_1m:  0.0
+    output_per_1m: 0.0
+  qwen-coder-small:
+    input_per_1m:  0.0
+    output_per_1m: 0.0
