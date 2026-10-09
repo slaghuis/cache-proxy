@@ -15,6 +15,7 @@ import (
 	"github.com/slaghuis/cache-proxy/internal/costs"
 	"github.com/slaghuis/cache-proxy/internal/embedder"
 	"github.com/slaghuis/cache-proxy/internal/upstream"
+	"github.com/slaghuis/cache-proxy/internal/escalator"
 )
 
 func main() {
@@ -57,7 +58,14 @@ func main() {
 		log.Fatalf("ledger: %v", err)
 	}
 
-	srv := api.NewServer(cfg, up, ex, sem, emb, ledger, logger)
+    	esc := &escalator.Escalator{
+        	Cfg:      cfg,
+        	Up:       up,
+        	Embedder: emb,       // reuse the prompt-embedding model
+        	Log:      logger,
+    	}
+
+    	srv := api.NewServer(cfg, up, ex, sem, emb, ledger, esc, logger)
 	logger.Info("cache-proxy starting", "listen", cfg.Listen)
 	if err := http.ListenAndServe(cfg.Listen, srv.Mux); err != nil {
 		log.Fatal(err)
