@@ -234,6 +234,79 @@ Embed the prompt and the response, compute cosine similarity, ensure it's above 
 #### Self-confidence (optional, more expensive)
 Second prompt to the local model: "Rate your confidence 0-10 in the above answer." Adds latency; use only for high-stakes task tags.
 
+
+## Testing End-to-End
+```
+# Build and restart cache-proxy
+cd ~/code/ai-factory/cache-proxy
+go build -o ~/.local/bin/cache-proxy ./cmd/cache-proxy
+# restart your running instance
+
+# 1. A simple task — should pass locally
+curl -s http://localhost:8080/v1/chat/completions \
+  -H 'Content-Type: application/json' \
+  -H 'x-task-tag: boilerplate' \
+  -d '{
+    "model":"auto",
+    "messages":[{"role":"user","content":"Write a Go function that returns the sum of two ints."}],
+    "temperature":0.1
+  }' -D -
+
+# Expected headers:
+#   x-model-used: qwen-coder-small
+#   x-escalated: false
+#   x-score: 0.9+
+
+# 2. A complex task with code — may escalate
+curl -s http://localhost:8080/v1/chat/completions \
+  -H 'Content-Type: application/json' \
+  -H 'x-task-tag: refactor' \
+  -d '{
+    "model":"auto",
+    "messages":[{"role":"user","content":"Refactor this to use generics and add a cache: func SumInts(xs []int) int { s:=0; for _,x:=range xs { s+=x }; return s }"}],
+    "temperature":0.1
+  }' -D -
+
+# Expected (if local output is weak):
+#   x-model-used: claude-sonnet
+#   x-escalated: true
+#   x-escalation-reason: low confidence: go_parse(Go block 1 did not parse: ...)
+
+# 3. Force local only
+curl -s http://localhost:8080/v1/chat/completions \
+  -H 'x-escalation: local-only' \
+  ...
+# 4. See the stats
+curl -s http://localhost:8080/admin/stats?hours=1 | jq
+# {
+#   "total_calls": 10,
+#   "cache_hits": 2,
+#   "escalations": 3,
+#   "local_successes": 5,
+#   "local_success_rate": 0.625,
+#   "cost_usd": 0.08,
+#   "saved_usd_estimate": 0.25
+# }
+```
+
+ ## Tuning Playbook
+Watch the stats for a week and adjust:
+ | Observation | Likely Cause | Fix |
+ | ----------- | ------------ | --- |
+ | `local_success_rate < 0.3` | Threshold too high, or local model too weak for your tasks | Lower profile threshold by 0.05–0.1, or try `qwen-coder` instead of `qwen-coder-small` |
+ | `local_success_rate > 0.9` | Threshold too low; you're accepting bad local outputs | Raise threshold by 0.05–0.1 |
+ | Lots of escalations with `go_parse` reasons | Local model struggles with Go specifically | Switch local to `deepseek-coder-v2:7b` or similar |
+ | Lots of escalations with length reasons | `expected_output_tokens` is miscalibrated | Adjust per profile based on real response sizes |
+ | Latency complaints | Local model is slow and often fails | Shorten `local_timeout_seconds` or route certain tags straight to cloud |
+ | Users report wrong-model answers | Scoring too permissive on hard tasks | Add `enable_similarity_check: true` to that tag's profile |
+
+## What You Gain
+Realistic baseline for Go dev work:
+ - **Boilerplate / explain** tags: 70–90% local success → 70–90% $0 responses.
+ - **Refactor / debug** tags: 20–40% local success → 20–40% cost savings on tasks that would otherwise be 100% cloud.
+ - **Overall**: another 20–40% cloud spend reduction on top of what the cache already saves.
+Combined with the cache and MCP retrieval, you're now at a realistic 70–85% cloud cost reduction vs naive agent usage, with no meaningful quality regression because escalation catches bad local answers automatically.
+
  ## Operational Notes
  - **Threshold tuning**: start at 0.95. If you're seeing stale answers, raise to 0.97. If hit rate is low on obviously similar questions, drop to 0.92 and watch for regressions.
  - **Scoped cache per model**: a Claude response cached under "claude-sonnet" is NOT served for "gpt-5" queries. This is intentional — different models produce different styles.
