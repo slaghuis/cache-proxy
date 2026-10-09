@@ -7,6 +7,23 @@ import (
 	"gopkg.in/yaml.v3"
 )
 
+type EscalationConfig struct {
+    Enabled             bool                        `yaml:"enabled"`
+    LocalTimeoutSeconds int                         `yaml:"local_timeout_seconds"`
+    DefaultProfile      EscalationProfile           `yaml:"default_profile"`
+    Profiles            map[string]EscalationProfile `yaml:"profiles"`
+}
+
+type EscalationProfile struct {
+    LocalModel            string  `yaml:"local_model"`
+    CloudModel            string  `yaml:"cloud_model"`
+    Threshold             float64 `yaml:"threshold"`
+    ExpectedOutputTokens  int     `yaml:"expected_output_tokens"`
+    EnableCompileCheck    bool    `yaml:"enable_compile_check"`
+    EnableSimilarityCheck bool    `yaml:"enable_similarity_check"`
+    SimilarityFloor       float64 `yaml:"similarity_floor"`
+}
+
 type Config struct {
 	Listen string `yaml:"listen"`
 
@@ -40,6 +57,8 @@ type Config struct {
 	} `yaml:"routing"`
 
 	Pricing map[string]ModelPricing `yaml:"pricing"`
+
+	Escalation EscalationConfig `yaml:"escalation"`
 }
 
 type RoutingRule struct {
@@ -89,4 +108,37 @@ func applyDefaults(c *Config) {
 	if c.Cache.TTLHours == 0 {
 		c.Cache.TTLHours = 168
 	}
+    	if c.Escalation.LocalTimeoutSeconds == 0 {
+        	c.Escalation.LocalTimeoutSeconds = 30
+    	}
+    	if c.Escalation.DefaultProfile.Threshold == 0 {
+        	c.Escalation.DefaultProfile.Threshold = 0.65
+    	}
+    	if c.Escalation.DefaultProfile.ExpectedOutputTokens == 0 {
+        	c.Escalation.DefaultProfile.ExpectedOutputTokens = 400
+    	}
+    	if c.Escalation.DefaultProfile.SimilarityFloor == 0 {
+        	c.Escalation.DefaultProfile.SimilarityFloor = 0.35
+    	}
+}
+
+// ProfileFor resolves a profile by task tag, falling back to default.
+func (c *Config) ProfileFor(tag string) EscalationProfile {
+    if p, ok := c.Escalation.Profiles[tag]; ok {
+        // Fill unset fields from default
+        if p.LocalModel == "" {
+            p.LocalModel = c.Escalation.DefaultProfile.LocalModel
+        }
+        if p.CloudModel == "" {
+            p.CloudModel = c.Escalation.DefaultProfile.CloudModel
+        }
+        if p.Threshold == 0 {
+            p.Threshold = c.Escalation.DefaultProfile.Threshold
+        }
+        if p.ExpectedOutputTokens == 0 {
+            p.ExpectedOutputTokens = c.Escalation.DefaultProfile.ExpectedOutputTokens
+        }
+        return p
+    }
+    return c.Escalation.DefaultProfile
 }
