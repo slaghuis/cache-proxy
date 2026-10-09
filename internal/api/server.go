@@ -16,10 +16,14 @@ type Server struct {
 }
 
 func NewServer(cfg *config.Config, up *upstream.Client, ex *cache.Exact,
-	sem *cache.Semantic, emb *embedder.Ollama, l *costs.Ledger, log *slog.Logger) *Server {
+    sem *cache.Semantic, emb *embedder.Ollama, l *costs.Ledger,
+    esc *escalator.Escalator, log *slog.Logger) *Server {
 
-	mux := http.NewServeMux()
-	chat := &ChatHandler{Up: up, Exact: ex, Semantic: sem, Embedder: emb, Ledger: l, Log: log}
+    mux := http.NewServeMux()
+    chat := &ChatHandler{
+        Up: up, Exact: ex, Semantic: sem, Embedder: emb,
+        Ledger: l, Escalator: esc, Log: log,
+	}
 	mux.Handle("/v1/chat/completions", chat)
 
 	// Pass-through for /v1/models so clients can introspect
