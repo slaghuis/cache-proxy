@@ -151,15 +151,22 @@ Edit file `~/.config/opencode/opencode.json`
 ```
 {
   "providers": {
-    "cache-proxy": {
+    "cache-proxy-strict": {
       "type": "openai",
       "baseURL": "http://localhost:8080/v1",
       "apiKey": "sk-local-dev",
-      "models": {
-        "claude-sonnet": {},
-        "gpt-5": {},
-        "qwen-coder": {},
-        "qwen-coder-small": {}
+      "defaultHeaders": {
+        "x-task-tag": "debug",
+        "x-escalation": "auto"
+      }
+    },
+    "cache-proxy-cheap": {
+      "type": "openai",
+      "baseURL": "http://localhost:8080/v1",
+      "apiKey": "sk-local-dev",
+      "defaultHeaders": {
+        "x-task-tag": "boilerplate",
+        "x-escalation": "local-only"
       }
     }
   }
