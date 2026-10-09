@@ -22,6 +22,8 @@ cache:
 
 routing:
   default_model: claude-sonnet
+  default_local_model: qwen-coder
+  default_cloud_model: claude-sonnet
   rules:
     # Short prompts -> local, fast model
     - when: { max_prompt_chars: 2000 }
@@ -34,6 +36,57 @@ routing:
       model: gpt-5
     - when: { model_hint_equals: claude-sonnet }
       model: claude-sonnet
+
+escalation:
+  enabled: true
+  # Fallback timeout: if local takes longer than this, escalate.
+  local_timeout_seconds: 25
+
+  # Default profile; applies to any request without a task_tag match.
+  default_profile:
+    local_model: qwen-coder
+    cloud_model: claude-sonnet
+    threshold: 0.65
+    expected_output_tokens: 400
+    enable_compile_check: true
+    enable_similarity_check: true
+    similarity_floor: 0.35
+
+  profiles:
+    # Code refactoring: strict. Local must shine or we escalate.
+    refactor:
+      local_model: qwen-coder
+      cloud_model: claude-sonnet
+      threshold: 0.80
+      expected_output_tokens: 600
+      enable_compile_check: true
+      enable_similarity_check: true
+      similarity_floor: 0.40
+
+    # Short explanations: loose. qwen-coder is fine.
+    explain:
+      local_model: qwen-coder-small
+      cloud_model: claude-sonnet
+      threshold: 0.50
+      expected_output_tokens: 300
+      enable_compile_check: false
+
+    # Boilerplate / repetitive: very loose.
+    boilerplate:
+      local_model: qwen-coder-small
+      cloud_model: claude-sonnet
+      threshold: 0.40
+      expected_output_tokens: 200
+
+    # Debugging: strict. Wrong answers are expensive to act on.
+    debug:
+      local_model: qwen-coder
+      cloud_model: claude-sonnet
+      threshold: 0.85
+      expected_output_tokens: 500
+      enable_compile_check: true
+      enable_similarity_check: true
+      similarity_floor: 0.45
 
 pricing:
   claude-sonnet:
