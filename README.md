@@ -176,6 +176,57 @@ curl -s http://localhost:8080/v1/chat/completions \
   -d '{ ... }'
 ```
 
+## Improvement - Confidence-Gated Local-First Routing
+Add intelligent escalation to the cache-proxy. Try a local model first (free), inspect the output for signs it got the task right, and only pay for cloud models when local can't deliver.
+ ### The Core Idea
+Current cache-proxy routing is static: a rule picks a model based on prompt size or task tag. We're adding a dynamic layer on top:
+```
+Request arrives
+  │
+  ├─ Static router picks: "qwen-coder" (local)   ← existing behaviour
+  │
+  ├─ Call local model
+  │
+  ├─ Score the response:
+  │   • Tool-call sanity
+  │   • Response length vs prompt complexity  
+  │   • Explicit "I don't know" markers
+  │   • Compilation / syntax check (for code tasks)
+  │   • Self-reported confidence (optional)
+  │
+  ├─ Score ≥ threshold?  →  return local response, log savings
+  │
+  └─ Score < threshold   →  escalate to cloud (Claude), 
+                             tag response as "escalated"
+```
+Key design principle: cheap signals only. If scoring costs more than a Claude call would have, we've lost. Everything happens locally, in milliseconds.
+ ### Design Decisions
+ | Decision | Choice | Rationale |
+ | -------- | ------ | --------- |
+ | Where it lives | New escalator package inside cache-proxy | Keeps routing + escalation co-located |
+ | What triggers escalation | Composable signal functions returning (score, reason) | Easy to tune per task type |
+ | Signals included | Length ratio, refusal markers, Go compile check, structural coherence | Cheap, high-signal for Go dev |
+ | Opt-in per request | Honor x-escalation header: auto (default), local-only, cloud-only, escalate-always | Agents can force when needed |
+ | Per-task-tag policies | YAML config maps tags to escalation profiles | "refactor" is strict; "explain" is loose |
+ | Cache interaction | Cache stores both local-good and cloud responses separately | Never serve local to a request that would have escalated |
+ | Observability | Record escalated reason in ledger | Can tune thresholds from data |
+ | Failure modes | If local fails/times out, go to cloud; never fail-closed | User experience > cost savings |
+
+### Scoring Signals (Go-Dev-Specific)
+Each signal returns a score 0.0–1.0 where 1.0 means "local looks great". We combine them with weighted average.
+#### Length ratio
+A one-sentence reply to a 2000-token prompt is suspicious. A 10-line reply to "fix the typo" is fine. Compute output_tokens / expected_output_tokens. The "expected" is tuned per task type.
+#### Refusal markers
+Local models often hedge: "I'm not sure, but...", "As an AI...", "I cannot...". Simple regex catches these. If found, score = 0.
+#### Code block syntax
+If the prompt looks code-related and the response contains a Go code block, try parsing it with go/parser. Compile errors = low score. This is the strongest signal for coding work.
+#### Structural coherence
+Does the response have abrupt truncation? Unbalanced braces? Markdown that opens with ### but never closes a code fence? Cheap to detect.
+#### Prompt-answer alignment (optional)
+Embed the prompt and the response, compute cosine similarity, ensure it's above a floor. Catches "my cat is cute" responses to Go questions. Uses Ollama embeddings you already have.
+#### Self-confidence (optional, more expensive)
+Second prompt to the local model: "Rate your confidence 0-10 in the above answer." Adds latency; use only for high-stakes task tags.
+
  ## Operational Notes
  - **Threshold tuning**: start at 0.95. If you're seeing stale answers, raise to 0.97. If hit rate is low on obviously similar questions, drop to 0.92 and watch for regressions.
  - **Scoped cache per model**: a Claude response cached under "claude-sonnet" is NOT served for "gpt-5" queries. This is intentional — different models produce different styles.
