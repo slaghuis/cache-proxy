@@ -104,9 +104,9 @@ func (l *Ledger) Stats(sinceHours int) (*Stats, error) {
     s := &Stats{}
     row := l.db.QueryRow(
         `SELECT COUNT(*),
-                SUM(CASE WHEN cached <> '' THEN 1 ELSE 0 END),
-                SUM(CASE WHEN escalated = 1 THEN 1 ELSE 0 END),
-                SUM(CASE WHEN cached = '' AND escalated = 0 AND score > 0 THEN 1 ELSE 0 END),
+                COALESCE(SUM(CASE WHEN cached <> '' THEN 1 ELSE 0 END), 0),
+                COALESCE(SUM(CASE WHEN escalated = 1 THEN 1 ELSE 0 END), 0),
+                COALESCE(SUM(CASE WHEN cached = '' AND escalated = 0 AND score > 0 THEN 1 ELSE 0 END), 0),
                 COALESCE(SUM(cost_usd), 0)
          FROM calls WHERE ts >= ?`, since)
     if err := row.Scan(&s.TotalCalls, &s.CacheHits, &s.Escalations,
