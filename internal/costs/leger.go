@@ -35,6 +35,9 @@ func New(path string) (*Ledger, error) {
     	CREATE INDEX IF NOT EXISTS idx_calls_model ON calls(model);
     	CREATE INDEX IF NOT EXISTS idx_calls_escalated ON calls(escalated);
     `
+	if _, err := db.Exec(schema); err != nil {
+		return nil, err
+	}
     	// Idempotent migration:
     	_, _ = db.Exec(`ALTER TABLE calls ADD COLUMN escalated INTEGER NOT NULL DEFAULT 0`)
     	_, _ = db.Exec(`ALTER TABLE calls ADD COLUMN score REAL NOT NULL DEFAULT 0`)

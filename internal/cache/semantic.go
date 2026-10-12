@@ -9,7 +9,7 @@ import (
 	"github.com/google/uuid"
 	"github.com/qdrant/go-client/qdrant"
 
-	"github.com/slaghuis/cache-proxy/internal/api"
+	"github.com/slaghuis/cache-proxy/internal/types"
 )
 
 type Semantic struct {
@@ -28,12 +28,12 @@ func NewSemantic(host string, port int, collection string, threshold float32, tt
 }
 
 type cacheEntry struct {
-	Response  *api.ChatResponse `json:"response"`
+	Response  *types.ChatResponse `json:"response"`
 	Model     string            `json:"model"`
 	CreatedAt int64             `json:"created_at"`
 }
 
-func (s *Semantic) Lookup(ctx context.Context, vec []float32, model string) (*api.ChatResponse, float32, bool) {
+func (s *Semantic) Lookup(ctx context.Context, vec []float32, model string) (*types.ChatResponse, float32, bool) {
 	limit := uint64(1)
 	resp, err := s.client.Query(ctx, &qdrant.QueryPoints{
 		CollectionName: s.collection,
@@ -70,7 +70,7 @@ func (s *Semantic) Lookup(ctx context.Context, vec []float32, model string) (*ap
 	return entry.Response, hit.Score, true
 }
 
-func (s *Semantic) Store(ctx context.Context, vec []float32, model string, resp *api.ChatResponse) error {
+func (s *Semantic) Store(ctx context.Context, vec []float32, model string, resp *types.ChatResponse) error {
 	entry := cacheEntry{Response: resp, Model: model, CreatedAt: time.Now().Unix()}
 	b, _ := json.Marshal(entry)
 

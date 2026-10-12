@@ -6,21 +6,21 @@ import (
 	"encoding/json"
 	"strings"
 
-	"github.com/slaghuis/cache-proxy/internal/api"
+	"github.com/slaghuis/cache-proxy/internal/types"
 )
 
 // Normalize produces a stable string for exact-match hashing and
 // a concatenated prompt string for semantic embedding.
-func Normalize(req *api.ChatRequest) (exactKey, semanticText string) {
+func Normalize(req *types.ChatRequest) (exactKey, semanticText string) {
+	type canonMessage struct {
+		Role    string `json:"role"`
+		Content string `json:"content"`
+	}
 	type canon struct {
 		Model    string         `json:"model"`
 		Messages []canonMessage `json:"messages"`
 		Temp     float32        `json:"temp"`
 		MaxTok   int            `json:"max_tokens"`
-	}
-	type canonMessage struct {
-		Role    string `json:"role"`
-		Content string `json:"content"`
 	}
 
 	c := canon{Model: req.Model}
@@ -82,7 +82,7 @@ func extractText(raw json.RawMessage) string {
 //     but we DO handle streaming at the response layer.
 //   - no tools (tool calls are stateful; agent will likely re-call anyway)
 //   - temperature <= 0.3 (determinism)
-func Cacheable(req *api.ChatRequest) bool {
+func Cacheable(req *types.ChatRequest) bool {
 	if len(req.Tools) > 0 {
 		return false
 	}

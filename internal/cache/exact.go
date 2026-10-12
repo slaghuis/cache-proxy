@@ -7,7 +7,7 @@ import (
 
 	_ "github.com/mattn/go-sqlite3"
 
-	"github.com/slaghuis/cache-proxy/internal/api"
+	"github.com/slaghuis/cache-proxy/internal/types"
 )
 
 type Exact struct {
@@ -35,7 +35,7 @@ func NewExact(path string, ttlHours int) (*Exact, error) {
 	return &Exact{db: db, ttlHours: ttlHours}, nil
 }
 
-func (e *Exact) Get(key string) (*api.ChatResponse, bool) {
+func (e *Exact) Get(key string) (*types.ChatResponse, bool) {
 	var payload string
 	var created int64
 	row := e.db.QueryRow(
@@ -47,14 +47,14 @@ func (e *Exact) Get(key string) (*api.ChatResponse, bool) {
 		_, _ = e.db.Exec(`DELETE FROM exact_cache WHERE key = ?`, key)
 		return nil, false
 	}
-	var resp api.ChatResponse
+	var resp types.ChatResponse
 	if err := json.Unmarshal([]byte(payload), &resp); err != nil {
 		return nil, false
 	}
 	return &resp, true
 }
 
-func (e *Exact) Put(key, model string, resp *api.ChatResponse) error {
+func (e *Exact) Put(key, model string, resp *types.ChatResponse) error {
 	b, err := json.Marshal(resp)
 	if err != nil {
 		return err
