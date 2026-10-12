@@ -3,11 +3,11 @@ package router
 import (
 	"net/http"
 
-	"github.com/slaghuis/cache-proxy/internal/api"
+	"github.com/slaghuis/cache-proxy/internal/types"
 	"github.com/slaghuis/cache-proxy/internal/config"
 )
 
-func Route(cfg *config.Config, req *api.ChatRequest, headers http.Header) string {
+func Route(cfg *config.Config, req *types.ChatRequest, headers http.Header) string {
 	promptLen := 0
 	for _, m := range req.Messages {
 		promptLen += len(m.Content)

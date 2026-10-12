@@ -8,6 +8,7 @@ import (
 	"github.com/slaghuis/cache-proxy/internal/config"
 	"github.com/slaghuis/cache-proxy/internal/costs"
 	"github.com/slaghuis/cache-proxy/internal/embedder"
+	"github.com/slaghuis/cache-proxy/internal/escalator"
 	"github.com/slaghuis/cache-proxy/internal/upstream"
 )
 
